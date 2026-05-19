@@ -10,7 +10,7 @@ import Connections from './components/Connections';
 import Insights from './components/Insights';
 import SettingsView from './components/SettingsView';
 import { Campaign, SocialConnection, ContentPost, Strategy, BusinessInsight } from './types';
-import { generateMockStrategy, generateMockPosts, generateMockInsights } from './lib/mockData';
+import { supabase } from './lib/supabase';
 
 type View = 'dashboard' | 'strategy' | 'content' | 'schedule' | 'analytics' | 'connections' | 'insights' | 'settings';
 
@@ -21,42 +21,31 @@ export default function App() {
   const [strategy, setStrategy] = useState<Strategy | null>(null);
   const [insights, setInsights] = useState<BusinessInsight[]>([]);
   const [currentView, setCurrentView] = useState<View>('dashboard');
-  const [bootstrapped, setBootstrapped] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (campaign && connections.length > 0 && !bootstrapped) {
-      setBootstrapped(true);
+  async function loadCampaignData(campaignId: string) {
+    try {
+      const [connRes, postsRes, stratRes, insightsRes] = await Promise.all([
+        supabase.from('social_connections').select('*').eq('campaign_id', campaignId),
+        supabase.from('content_posts').select('*').eq('campaign_id', campaignId),
+        supabase.from('strategies').select('*').eq('campaign_id', campaignId).order('created_at', { ascending: false }).limit(1),
+        supabase.from('business_insights').select('*').eq('campaign_id', campaignId),
+      ]);
 
-      const mockStrategy = generateMockStrategy(campaign.id, campaign.business_name, campaign.industry || 'Technology');
-      const strat: Strategy = {
-        ...mockStrategy,
-        id: crypto.randomUUID(),
-        created_at: new Date().toISOString(),
-      } as Strategy;
-      setStrategy(strat);
-
-      const mockPosts = generateMockPosts(campaign.id, campaign.business_name);
-      const initialPosts: ContentPost[] = mockPosts.map(p => ({
-        ...p,
-        id: crypto.randomUUID(),
-        created_at: new Date().toISOString(),
-      } as ContentPost));
-      setPosts(initialPosts);
-
-      const mockInsights = generateMockInsights(campaign.id, campaign.business_name, campaign.industry || 'Technology');
-      const initialInsights: BusinessInsight[] = mockInsights.map(i => ({
-        ...i,
-        id: crypto.randomUUID(),
-        created_at: new Date().toISOString(),
-      }));
-      setInsights(initialInsights);
+      setConnections((connRes.data as SocialConnection[]) || []);
+      setPosts((postsRes.data as ContentPost[]) || []);
+      if (stratRes.data && stratRes.data.length > 0) setStrategy(stratRes.data[0] as Strategy);
+      setInsights((insightsRes.data as BusinessInsight[]) || []);
+    } catch (err) {
+      console.error('Failed to load campaign data:', err);
     }
-  }, [campaign, connections, bootstrapped]);
+  }
 
-  function handleOnboardingComplete(newCampaign: Campaign, newConnections: SocialConnection[]) {
+  async function handleOnboardingComplete(newCampaign: Campaign, newConnections: SocialConnection[]) {
     setCampaign(newCampaign);
     setConnections(newConnections);
     setCurrentView('dashboard');
+    await loadCampaignData(newCampaign.id);
   }
 
   function handleReset() {
@@ -65,7 +54,6 @@ export default function App() {
     setPosts([]);
     setStrategy(null);
     setInsights([]);
-    setBootstrapped(false);
     setCurrentView('dashboard');
   }
 

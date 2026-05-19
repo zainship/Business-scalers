@@ -41,25 +41,22 @@ export default function ContentStudio({ campaign, posts, onPostsUpdate }: Conten
     setGenerating(true);
     await new Promise(r => setTimeout(r, 1800));
     const newPosts = generateMockPosts(campaign.id, campaign.business_name);
-    const created: ContentPost[] = newPosts.map(p => ({
-      ...p,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-    } as ContentPost));
+    const created: ContentPost[] = [];
 
-    // Try DB insert
-    for (const post of created) {
-      await supabase.from('content_posts').insert({
-        campaign_id: post.campaign_id,
-        platform: post.platform,
-        content_text: post.content_text,
-        image_url: post.image_url,
-        hashtags: post.hashtags,
-        caption: post.caption,
-        post_type: post.post_type,
-        scheduled_at: post.scheduled_at,
-        status: post.status,
-      });
+    for (const p of newPosts) {
+      const { data, error } = await supabase.from('content_posts').insert({
+        campaign_id: p.campaign_id,
+        platform: p.platform,
+        content_text: p.content_text,
+        image_url: p.image_url,
+        hashtags: p.hashtags,
+        caption: p.caption,
+        post_type: p.post_type,
+        scheduled_at: p.scheduled_at,
+        status: p.status,
+      }).select().maybeSingle();
+
+      if (!error && data) created.push(data as ContentPost);
     }
 
     setGenerating(false);
@@ -83,26 +80,34 @@ export default function ContentStudio({ campaign, posts, onPostsUpdate }: Conten
     setEditingText(post.content_text);
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     if (!selectedPost) return;
-    const updated = posts.map(p => p.id === selectedPost.id ? { ...p, content_text: editingText } : p);
-    onPostsUpdate(updated);
-    setSelectedPost({ ...selectedPost, content_text: editingText });
+    const { error } = await supabase.from('content_posts').update({ content_text: editingText }).eq('id', selectedPost.id);
+    if (!error) {
+      const updated = posts.map(p => p.id === selectedPost.id ? { ...p, content_text: editingText } : p);
+      onPostsUpdate(updated);
+      setSelectedPost({ ...selectedPost, content_text: editingText });
+    }
   }
 
   async function schedulePost(postId: string) {
     const scheduledAt = new Date();
     scheduledAt.setDate(scheduledAt.getDate() + Math.floor(Math.random() * 5) + 1);
     scheduledAt.setHours(9, 0, 0, 0);
-    const updated = posts.map(p => p.id === postId ? { ...p, status: 'scheduled' as const, scheduled_at: scheduledAt.toISOString() } : p);
-    onPostsUpdate(updated);
-    await supabase.from('content_posts').update({ status: 'scheduled', scheduled_at: scheduledAt.toISOString() }).eq('id', postId);
+
+    const { error } = await supabase.from('content_posts').update({ status: 'scheduled', scheduled_at: scheduledAt.toISOString() }).eq('id', postId);
+    if (!error) {
+      const updated = posts.map(p => p.id === postId ? { ...p, status: 'scheduled' as const, scheduled_at: scheduledAt.toISOString() } : p);
+      onPostsUpdate(updated);
+    }
   }
 
   async function deletePost(postId: string) {
-    onPostsUpdate(posts.filter(p => p.id !== postId));
-    if (selectedPost?.id === postId) setSelectedPost(null);
-    await supabase.from('content_posts').delete().eq('id', postId);
+    const { error } = await supabase.from('content_posts').delete().eq('id', postId);
+    if (!error) {
+      onPostsUpdate(posts.filter(p => p.id !== postId));
+      if (selectedPost?.id === postId) setSelectedPost(null);
+    }
   }
 
   const filtered = posts.filter(p => {

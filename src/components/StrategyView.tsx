@@ -18,26 +18,20 @@ export default function StrategyView({ campaign, strategy, onStrategyUpdate }: S
     setGenerating(true);
     await new Promise(r => setTimeout(r, 2000));
     const mockStrategy = generateMockStrategy(campaign.id, campaign.business_name, campaign.industry);
-    const newStrategy: Strategy = {
-      ...mockStrategy,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-    } as Strategy;
 
-    // Try to save to DB
-    const { data } = await supabase.from('strategies').insert({
-      campaign_id: newStrategy.campaign_id,
-      title: newStrategy.title,
-      overview: newStrategy.overview,
-      strategy_json: newStrategy.strategy_json,
-      posting_schedule: newStrategy.posting_schedule,
-      content_pillars: newStrategy.content_pillars,
-      target_metrics: newStrategy.target_metrics,
+    const { data, error } = await supabase.from('strategies').insert({
+      campaign_id: campaign.id,
+      title: mockStrategy.title,
+      overview: mockStrategy.overview,
+      strategy_json: mockStrategy.strategy_json,
+      posting_schedule: mockStrategy.posting_schedule,
+      content_pillars: mockStrategy.content_pillars,
+      target_metrics: mockStrategy.target_metrics,
       status: 'pending',
     }).select().maybeSingle();
 
     setGenerating(false);
-    onStrategyUpdate(data as Strategy || newStrategy);
+    if (!error && data) onStrategyUpdate(data as Strategy);
   }
 
   async function handleApprove() {

@@ -25,12 +25,17 @@ export default function SettingsView({ campaign, onCampaignUpdate, onReset }: Se
   async function handleSave() {
     setSaving(true);
     await new Promise(r => setTimeout(r, 800));
-    const updated = { ...campaign, ...form, updated_at: new Date().toISOString() };
-    await supabase.from('campaigns').update(form).eq('id', campaign.id);
+    const { error } = await supabase.from('campaigns').update({
+      ...form,
+      updated_at: new Date().toISOString(),
+    }).eq('id', campaign.id);
+
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
-    onCampaignUpdate(updated);
+    if (!error) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      onCampaignUpdate({ ...campaign, ...form, updated_at: new Date().toISOString() });
+    }
   }
 
   const industries = ['Technology', 'E-commerce', 'Food & Beverage', 'Fashion', 'Health & Wellness', 'Finance', 'Real Estate', 'Education', 'Travel', 'Entertainment', 'B2B Services', 'Non-profit', 'Other'];

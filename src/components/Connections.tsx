@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Instagram, Youtube, Twitter, Linkedin, Facebook, CheckCircle, XCircle, RefreshCw, Loader2, Users, TrendingUp, FileText, Clock } from 'lucide-react';
 import { SocialConnection, Platform } from '../types';
 import { PLATFORM_COLORS, PLATFORM_LABELS } from '../lib/mockData';
+import { supabase } from '../lib/supabase';
 
 interface ConnectionsProps {
   connections: SocialConnection[];
@@ -31,26 +32,42 @@ export default function Connections({ connections, onConnectionsUpdate }: Connec
   async function scanProfile(connectionId: string) {
     setScanning(connectionId);
     await new Promise(r => setTimeout(r, 2000));
-    const updated = connections.map(c => {
-      if (c.id !== connectionId) return c;
-      return {
-        ...c,
-        followers: c.followers + Math.floor(Math.random() * 50),
-        avg_engagement_rate: parseFloat((c.avg_engagement_rate + (Math.random() * 0.5 - 0.2)).toFixed(1)),
-      };
-    });
+    const connection = connections.find(c => c.id === connectionId);
+    if (!connection) return;
+
+    const newFollowers = connection.followers + Math.floor(Math.random() * 50);
+    const newEngagement = parseFloat((connection.avg_engagement_rate + (Math.random() * 0.5 - 0.2)).toFixed(1));
+
+    const { error } = await supabase.from('social_connections').update({
+      followers: newFollowers,
+      avg_engagement_rate: newEngagement,
+    }).eq('id', connectionId);
+
+    if (!error) {
+      const updated = connections.map(c =>
+        c.id === connectionId ? { ...c, followers: newFollowers, avg_engagement_rate: newEngagement } : c
+      );
+      onConnectionsUpdate(updated);
+    }
     setScanning(null);
-    onConnectionsUpdate(updated);
   }
 
   async function disconnectAccount(connectionId: string) {
     setDisconnecting(connectionId);
     await new Promise(r => setTimeout(r, 800));
-    const updated = connections.map(c =>
-      c.id === connectionId ? { ...c, connected: false, status: 'disconnected' as const, followers: 0 } : c
-    );
+    const { error } = await supabase.from('social_connections').update({
+      connected: false,
+      status: 'disconnected',
+      followers: 0,
+    }).eq('id', connectionId);
+
+    if (!error) {
+      const updated = connections.map(c =>
+        c.id === connectionId ? { ...c, connected: false, status: 'disconnected' as const, followers: 0 } : c
+      );
+      onConnectionsUpdate(updated);
+    }
     setDisconnecting(null);
-    onConnectionsUpdate(updated);
   }
 
   const connected = connections.filter(c => c.connected);

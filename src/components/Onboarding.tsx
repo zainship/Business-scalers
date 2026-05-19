@@ -122,17 +122,41 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     setLoading(true);
     const campaign = (window as unknown as Record<string, Campaign>).__pendingCampaign as Campaign;
     const mockConns = generateMockConnections(campaign.id);
-    const connections: SocialConnection[] = mockConns.map((c, i) => ({
-      ...c,
-      id: crypto.randomUUID(),
-      platform: c.platform as Platform,
-      account_handle: handles[c.platform as Platform] || `@${campaign.business_name.toLowerCase().replace(/\s+/g, '')}`,
-      connected: connectedPlatforms.includes(c.platform as Platform),
-      status: connectedPlatforms.includes(c.platform as Platform) ? 'connected' : 'disconnected',
-      followers: connectedPlatforms.includes(c.platform as Platform) ? [12400, 8200, 34700, 5900, 22100][i] : 0,
-      avg_engagement_rate: connectedPlatforms.includes(c.platform as Platform) ? [4.2, 6.8, 2.1, 3.5, 2.9][i] : 0,
-      best_posting_times: ['9:00 AM', '12:00 PM', '6:00 PM'],
-    } as SocialConnection));
+    const connections: SocialConnection[] = [];
+
+    for (let i = 0; i < mockConns.length; i++) {
+      const c = mockConns[i];
+      const isConnected = connectedPlatforms.includes(c.platform as Platform);
+      const handle = handles[c.platform as Platform] || `@${campaign.business_name.toLowerCase().replace(/\s+/g, '')}`;
+
+      const newConn: SocialConnection = {
+        ...c,
+        id: crypto.randomUUID(),
+        platform: c.platform as Platform,
+        account_handle: handle,
+        connected: isConnected,
+        status: isConnected ? 'connected' : 'disconnected',
+        followers: isConnected ? [12400, 8200, 34700, 5900, 22100][i] : 0,
+        avg_engagement_rate: isConnected ? [4.2, 6.8, 2.1, 3.5, 2.9][i] : 0,
+        best_posting_times: ['9:00 AM', '12:00 PM', '6:00 PM'],
+      } as SocialConnection;
+
+      // Save to DB
+      const { data } = await supabase.from('social_connections').insert({
+        campaign_id: newConn.campaign_id,
+        platform: newConn.platform,
+        account_handle: newConn.account_handle,
+        account_name: newConn.account_name,
+        followers: newConn.followers,
+        avg_engagement_rate: newConn.avg_engagement_rate,
+        best_posting_times: newConn.best_posting_times,
+        connected: newConn.connected,
+        status: newConn.status,
+      }).select().maybeSingle();
+
+      if (data) connections.push(data as SocialConnection);
+      else connections.push(newConn);
+    }
 
     await new Promise(r => setTimeout(r, 800));
     setLoading(false);

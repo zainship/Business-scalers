@@ -31,21 +31,19 @@ export default function Insights({ campaign, insights, onInsightsUpdate }: Insig
     setScanning(true);
     await new Promise(r => setTimeout(r, 2500));
     const newInsights = generateMockInsights(campaign.id, campaign.business_name, campaign.industry);
-    const created: BusinessInsight[] = newInsights.map(i => ({
-      ...i,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-    }));
+    const created: BusinessInsight[] = [];
 
-    for (const insight of created) {
-      await supabase.from('business_insights').insert({
-        campaign_id: insight.campaign_id,
-        insight_type: insight.insight_type,
-        title: insight.title,
-        content: insight.content,
-        source_url: insight.source_url,
-        metadata: insight.metadata,
-      });
+    for (const i of newInsights) {
+      const { data, error } = await supabase.from('business_insights').insert({
+        campaign_id: campaign.id,
+        insight_type: i.insight_type,
+        title: i.title,
+        content: i.content,
+        source_url: i.source_url,
+        metadata: i.metadata,
+      }).select().maybeSingle();
+
+      if (!error && data) created.push(data as BusinessInsight);
     }
 
     setScanning(false);

@@ -48,10 +48,14 @@ export default function Scheduler({ posts, onPostsUpdate }: SchedulerProps) {
   );
 
   async function publishPost(postId: string) {
-    const updated = posts.map(p =>
-      p.id === postId ? { ...p, status: 'published' as const, published_at: new Date().toISOString() } : p
-    );
-    onPostsUpdate(updated);
+    const publishedAt = new Date().toISOString();
+    const { error } = await supabase.from('content_posts').update({ status: 'published', published_at: publishedAt }).eq('id', postId);
+    if (!error) {
+      const updated = posts.map(p =>
+        p.id === postId ? { ...p, status: 'published' as const, published_at: publishedAt } : p
+      );
+      onPostsUpdate(updated);
+    }
   }
 
   return (
